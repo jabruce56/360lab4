@@ -21,7 +21,7 @@ int  serverPort;                     // server port number
 int  r, length, n;                   // help variables
 
 char *months[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
-char *days[7]={"Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
+char *days[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 
 // Server initialization code:
 
@@ -81,19 +81,21 @@ int server_init(char *name)
 }
 
 char *printdir(char *c){
-  char perm[10], buf[512], str[2048], *rstr;
   int i=0;
   struct stat d;
-  struct tm *tm;
+  struct tm tm;
   struct dirent *dp;
   DIR *dir;
+  char buf[2048], str[2048], *rstr, tim[80];
 
   dir=opendir(c);
   memset(str, '\0', 2048);
+  memset(buf, '\0', 2048);
   while((dp=readdir(dir))!=NULL){
-    for(i=0;i<10;i++){perm[i]='-';}
     stat(dp->d_name, &d);
-    tm=gmtime(&d.st_mtime);
+    localtime_r(&d.st_mtime, &tm);
+    strftime(tim, sizeof(tim), "%c", &tm);
+
     sprintf(buf, (S_ISDIR(d.st_mode)) ? "d" : "-");
     strcat(str, buf);
     sprintf(buf, (d.st_mode & S_IRUSR) ? "r" : "-");
@@ -114,8 +116,10 @@ char *printdir(char *c){
     strcat(str, buf);
     sprintf(buf, (d.st_mode & S_IXOTH) ? "x" : "-");
     strcat(str, buf);
-    sprintf(buf, " %s %s %2d %2d:%2d:%2d %4d %s\n", days[tm->tm_wday], months[tm->tm_mon], tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec, tm->tm_year+1900, dp->d_name);
+
+    sprintf(buf, "%4d %4d %4d %6d %s %s\n", d.st_nlink, d.st_uid, d.st_gid, d.st_size, tim, dp->d_name);
     strcat(str, buf);
+
   }
   rstr=str;
   return rstr;
@@ -124,9 +128,10 @@ char *printdir(char *c){
 main(int argc, char *argv[])
 {
   const char *hdir;
-  char *hostname, *str=malloc();
-  char line[MAX], cwd[128], ncwd[128];
-  int nint=0, i =0, j=0;
+  FILE *fp;
+  char *hostname, *str;
+  char line[MAX], cwd[128], ncwd[128], buf[512], c;
+  int nint=0, i =0, j=0, t=0;
   if (argc < 2)
   hostname = "localhost";
   else
@@ -173,7 +178,11 @@ main(int argc, char *argv[])
 
 
       //ls
+
+      /*bug in ls
+      when ls any but current directory, permissions and date incorrect*/
       if(!strncmp(line, "ls", 2)){
+
         getcwd(cwd, 128);
         if(strlen(line)<3){//only ls
           str = printdir(cwd);//ls cwd
@@ -181,17 +190,22 @@ main(int argc, char *argv[])
         else{
           if(line[3]!='/'){
             strcat(cwd, "/");
-            for(i=3;i<=strlen(line);i++){
-              strncat(cwd, &line[i], 1);
-            }
+            sscanf(line, "ls %s", ncwd);
+            strcat(cwd, ncwd);
+            //printf("cwd %s", cwd);
             str = printdir(cwd);
+            //printf("\n%s\n",cwd);
+          }
+          else if(line[4]=='\n'){
+            str = printdir(line[3]);
           }
           else{
-            memset(ncwd, '\0', 256);
-            for(i=3;i<=strlen(line);i++){
-              strncat(ncwd, &line[i], 1);
-            }
-            str = printdir(ncwd);
+            sscanf(line, "ls %s", ncwd);
+            strcpy(cwd, ncwd);
+            //printf("cwd %s", cwd);
+            str = printdir(cwd);
+            //printf("\n%s\n",cwd);
+
           }
         }
       }
@@ -201,91 +215,119 @@ main(int argc, char *argv[])
       if(!strncmp(line, "cd", 2)){
         if(strlen(line)<3){//only cd
           chdir(hdir);//go to HOME
-          getcwd(cwd, 128);
-          str = cwd;
+          strcpy(str, hdir);
         }
         else{
-          if(line[3]=='/'){//new path
-            sscanf(line ,"cd %s", ncwd);
-            strncpy(str, ncwd, strlen(ncwd));
-            chdir(str);
-          }
-          else{//go from cwd
+          if(line[3]!='/'){//go from cwd
             getcwd(cwd, 128);
             strcat(cwd, "/");
             sscanf(line ,"cd %s", ncwd);
             strcat(cwd, ncwd);
-            strncpy(str, cwd, strlen(cwd));
+            strcpy(str, cwd);
+            chdir(str);
+          }
+          else{//new path
+            sscanf(line ,"cd %s", ncwd);
+            strcpy(str, ncwd);
             chdir(str);
           }
         }
       }
 
 
-      //cat
-      // else if(!strncmp(line, "cat", 3)){
-      //   if(strlen(entry[1].value)){
-      //     if(entry[1].value[0]!='/'){
-      //       getcwd(cwd, 128);
-      //       strcat(cwd, "/");
-      //       strcat(cwd, entry[1].value);
-      //       fp=fopen(cwd, "r");
-      //     }
-      //     else{
-      //       fp=fopen(line, "r");
-      //     }
-      //     if(fp==NULL){
-      //       printf("No such file<p>");
-      //     }
-      //     else{
-      //       while((c=fgetc(fp)) != EOF){
-      //         putchar(c);
-      //       }
-      //     }
-      //     printf("<p>");
-      //     fclose(fp);
-      //   }
-      // }
 
 
       //mkdir
-      // else if(!strncmp(line, "mkdir", 5)){
-      //   if(strlen(entry[1].value)){
-      //     t=mkdir(entry[1].value, 0755);
-      //     if(t<0){
-      //       printf("mkdir failed<p>");
-      //     }
-      //   }
-      // }
+      else if(!strncmp(line, "mkdir", 5)){
+        if(strlen(line)>6){
+          if(line[6]!='/'){
+            getcwd(cwd, 128);
+            strcat(cwd, "/");
+            sscanf(line, "mkdir %s", ncwd);
+            strcat(cwd, ncwd);
+            strcpy(str, cwd);
+          }
+
+          else{
+            sscanf(line, "mkdir %s", cwd);
+            strcpy(str, cwd);
+          }
+          t=mkdir(cwd, 0755);
+          if(t<0){
+            printf("mkdir failed\n");
+          }
+        }
+      }
 
 
       //rmdir
-      // else if(!strncmp(line, "rmdir", 5)){
-      //   if(strlen(entry[1].value)){
-      //     t=rmdir(entry[1].value);
-      //     if(t<0){
-      //       printf("rmdir failed<p>");
-      //     }
-      //   }
-      // }
+      else if(!strncmp(line, "rmdir", 5)){
+        if(strlen(line)>6){
+          if(line[6]!='/'){
+            getcwd(cwd, 128);
+            strcat(cwd, "/");
+            sscanf(line, "rmdir %s", ncwd);
+            strcat(cwd, ncwd);
+            strcpy(str, cwd);
+
+          }
+          else if(line[7]=='\n'){
+            strcpy(cwd, "/");
+            strcpy(str, cwd);
+          }
+          else{
+            sscanf(line, "rmdir %s", cwd);
+            strcpy(str, cwd);
+          }
+          t=rmdir(cwd, 0755);
+          if(t<0){
+            printf("mkdir failed\n");
+          }
+        }
+      }
+
 
 
       //rm
-      // else if(!strncmp(line, "rm", 2)){
-      //   if(strlen(entry[1].value)){
-      //     t=remove(entry[1].value);
-      //     if(t<0){
-      //       printf("rm failed<p>");
-      //     }
-      //   }
-      // }
+      else if(!strncmp(line, "rm", 2)){
+        if(strlen(line)>3){
+          if(line[3]!='/'){
+            getcwd(cwd, 128);
+            strcat(cwd, "/");
+            sscanf(line, "rmdir %s", ncwd);
+            strcat(cwd, ncwd);
+            strcpy(str, cwd);
 
+          }
+          else if(line[4]=='\n'){
+            strcpy(cwd, "/");
+            strcpy(str, cwd);
+          }
+          else{
+            sscanf(line, "rmdir %s", cwd);
+            strcpy(str, cwd);
+          }
+          t=remove(cwd);
+          if(t<0){
+            printf("rm failed\n");
+          }
+        }
+        else{
+          strcpy(str, "incorrect command, use\nrm PATH\n");
+        }
+      }
+
+
+      //get
+      else if(!strncmp(line, "get", 3)){
+
+      }
 
       //cp
       // else if(!strncmp(line, "cp", 2)){
-      //   if(strlen(entry[1].value)){
-      //     if(strlen(entry[2].value)){
-      //       if(entry[1].value[0]!='/'){
+      //   if(strlen(line)>3){
+      //
+      //       if(line[3]!='/'){
       //         getcwd(cwd, 128);
       //         strcat(cwd, "/");
       //         strcat(cwd, entry[1].value);
@@ -309,12 +351,9 @@ main(int argc, char *argv[])
       //         fputc(c, fpc);
       //       }
       //       printf("<p>");
-      //     }
+      //
       //   }
       // }
-
-
-      printf("\n%s\n", str);
 
 
       // send the echo line to client
@@ -324,6 +363,9 @@ main(int argc, char *argv[])
       //print"f("%d\n", ntohl(nint));
       n = write(client_sock, str, ntohl(nint));
       printf("server: wrote n=%d bytes; ECHO=[%s]\n", n, str);
+
+      memset(cwd, '\0', 128);
+      memset(ncwd, '\0', 128);
       memset(line, '\0', 256);
       memset(str, '\0', strlen(str));
       printf("server: ready for next request\n");
