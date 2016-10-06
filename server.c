@@ -89,7 +89,7 @@ char *printdir(char *c){
   DIR *dir;
 
   dir=opendir(c);
-  memset(str, '\0', 1024);
+  memset(str, '\0', 2048);
   while((dp=readdir(dir))!=NULL){
     for(i=0;i<10;i++){perm[i]='-';}
     stat(dp->d_name, &d);
@@ -124,7 +124,7 @@ char *printdir(char *c){
 main(int argc, char *argv[])
 {
   const char *hdir;
-  char *hostname, *str;
+  char *hostname, *str=malloc();
   char line[MAX], cwd[128], ncwd[128];
   int nint=0, i =0, j=0;
   if (argc < 2)
@@ -187,15 +187,10 @@ main(int argc, char *argv[])
             str = printdir(cwd);
           }
           else{
-            if(line[4]=='\n'){
-              printf("found root printy time");
-            }
-            printf("%d\n", strlen(line));
+            memset(ncwd, '\0', 256);
             for(i=3;i<=strlen(line);i++){
-              putchar(line[i]);
               strncat(ncwd, &line[i], 1);
             }
-            strcat(ncwd, "\n");
             str = printdir(ncwd);
           }
         }
@@ -319,19 +314,17 @@ main(int argc, char *argv[])
       // }
 
 
-
+      printf("\n%s\n", str);
 
 
       // send the echo line to client
       nint=htonl(((strlen(str)*sizeof(char))+1));
       //first send length of message
-
       n = write(client_sock, &nint, sizeof(nint));
-      printf("%d\n", ntohl(nint));
-      snprintf(line, ntohl(nint),"%s", str);
-      n = write(client_sock, line, ntohl(nint));
-      printf("server: wrote n=%d bytes; ECHO=[%s]\n", n, line);
-      memset(line, '\0', ntohl(nint));
+      //print"f("%d\n", ntohl(nint));
+      n = write(client_sock, str, ntohl(nint));
+      printf("server: wrote n=%d bytes; ECHO=[%s]\n", n, str);
+      memset(line, '\0', 256);
       memset(str, '\0', strlen(str));
       printf("server: ready for next request\n");
     }
