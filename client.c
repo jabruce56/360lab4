@@ -114,7 +114,8 @@ int client_init(char *argv[])
 main(int argc, char *argv[ ])
 {
   int n, nint=0, i=0, t=0;
-  char line[MAX], ans[MAX], cwd[128], ncwd[128], *str, *hdir;
+  FILE *fp;
+  char line[MAX], ans[MAX], cwd[128], ncwd[128], *str, *hdir, *fstr;
 
   if (argc < 3){
      printf("Usage : client ServerName SeverPort\n");
@@ -271,14 +272,39 @@ main(int argc, char *argv[ ])
           printf("incorrect command, use\nrm PATH\n");
         }
       }
-    
+      else if(!strncmp(line, "get", 3)){
+        n = write(server_sock, line, MAX);
+        printf("client: wrote n=%d bytes; line=(%s)\n", n, line);
+
+        n=read(server_sock, str, MAX);
+        sscanf(str, "%d %s", nint, cwd);
+        fstr = malloc(ntohl(nint) * sizeof(char));
+        fp = fopen(cwd, "ab+");
+        n = read(server_sock, fstr, ntohl(nint));
+        fprintf(fp, "%s\n", fstr);
+        fclose(fp);
+        free(fstr);
+      }
+      else if(!strncmp(line, "put", 3)){
+        n = write(server_sock, line, MAX);
+        printf("client: wrote n=%d bytes; line=(%s)\n", n, line);
+
+        n=read(server_sock, str, MAX);
+        sscanf(str, "%d %s", nint, cwd);
+        fstr = malloc(ntohl(nint) * sizeof(char));
+        fp = fopen(cwd, "ab+");
+        n = read(server_sock, fstr, ntohl(nint));
+        fprintf(fp, "%s\n", fstr);
+        fclose(fp);
+        free(fstr);
+      }
     else{//else not local command, send to server
     // Send ENTIRE line to server
     n = write(server_sock, line, MAX);
     printf("client: wrote n=%d bytes; line=(%s)\n", n, line);
 
     //first read message length
-    n=read(server_sock, &nint, sizeof(nint));
+    n=read(server_sock, &nint, MAX);
     nint = ntohl(nint);
     printf("receiving %d bytes...\n", nint);
     str = malloc(nint * sizeof(char));

@@ -129,7 +129,8 @@ main(int argc, char *argv[])
 {
   const char *hdir;
   FILE *fp;
-  char *hostname, *str;
+  struct stat d;
+  char *hostname, *str, *fstr;
   char line[MAX], cwd[128], ncwd[128], buf[512], c;
   int nint=0, i =0, j=0, t=0;
   if (argc < 2)
@@ -168,7 +169,32 @@ main(int argc, char *argv[])
 
       // show the line string
       printf("server: read  n=%d bytes; line=[%s]\n", n, line);
+      if(!strncmp(line, "get", 3)){
+        if(strlen(line)>4){
+          if(line[4]!='/'){
+            getcwd(cwd, 128);
+            strcat(cwd, "/");
+            sscanf(line, "get %s", ncwd);
+            strcat(cwd, ncwd);
+          }
+          else{
+            sscanf(line, "get %s", cwd);
+          }
+      }
+      stat(cwd, &d);
+      nint=htonl((d.st_size*sizeof(char)));
+      fstr = malloc(ntohl(nint)*sizeof(char));
 
+      //first send length of message
+      sprintf(str, "%d %s", nint, cwd);
+      //print"f("%d\n", ntohl(nint));
+      n = write(client_sock, str, MAX);
+      fp = fopen(cwd, "r");
+
+      n = write(client_sock, fstr, ntohl(nint));
+      free(fstr);
+    }
+else{
 
       //pwd
       if(!strncmp(line, "pwd", 3)){
@@ -319,10 +345,6 @@ main(int argc, char *argv[])
 
 
       //get
-      else if(!strncmp(line, "get", 3)){
-
-      }
-
       //cp
       // else if(!strncmp(line, "cp", 2)){
       //   if(strlen(line)>3){
@@ -359,7 +381,7 @@ main(int argc, char *argv[])
       // send the echo line to client
       nint=htonl(((strlen(str)*sizeof(char))+1));
       //first send length of message
-      n = write(client_sock, &nint, sizeof(nint));
+      n = write(client_sock, &nint, MAX);
       //print"f("%d\n", ntohl(nint));
       n = write(client_sock, str, ntohl(nint));
       printf("server: wrote n=%d bytes; ECHO=[%s]\n", n, str);
@@ -369,6 +391,7 @@ main(int argc, char *argv[])
       memset(line, '\0', 256);
       memset(str, '\0', strlen(str));
       printf("server: ready for next request\n");
+    }
     }
   }
 }
